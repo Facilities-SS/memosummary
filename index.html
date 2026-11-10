@@ -631,14 +631,9 @@
   let uploadedFiles = [];
   let pieChartInstance = null, stackedBarChartInstance = null, memoDonutChartInstance = null;
   let memoCurrentMode = 'daily';
-  let store = null;      // shared db namespace, or null (local mode)
-  let downloads = null;  // downloads namespace, or null
   let pendingDeleteId = null;
-  let importing = false;   // true while an import is being written to the shared db
-  let lastRemote = null;   // latest rows from the shared db
 
   const num = v => parseInt(v, 10) || 0;
-  // Imported rows carry the file's own headcount total (people can appear under two purposes), so prefer it over the category sum.
   const catSum = d => d.lunch + d.smoking + d.offsite + d.leave;
   const rowTotal = d => (typeof d.total === 'number' ? d.total : catSum(d));
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -657,57 +652,56 @@
     return { deptMap, t };
   }
 
-  // ---------- Boot ----------
+  // ---------- Boot & Firebase Realtime Connection ----------
   window.addEventListener('load', function () {
     hydrateIcons();
     if (window.Chart) Chart.defaults.font.family = "'Sarabun', sans-serif";
     document.getElementById('entry-date').value = localISO();
     populateDeptDropdowns();
     renderAllSheets();
-    connectServices();
+    initFirebaseRealtime();
     document.getElementById('dropzone').addEventListener('click', function (e) {
       if (e.target.id !== 'file-input') document.getElementById('file-input').click();
     });
   });
 
-  async function connectServices() {
+  function initFirebaseRealtime() {
     const badge = document.getElementById('sync-badge');
-    try { downloads = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { downloads = null; }
-    let db = null;
-    try { db = window.claude && window.claude.use ? await window.claude.use('db') : null; } catch (e) { db = null; }
-    if (!db) {
+    if (typeof firebase === 'undefined' || !firebase.firestore) {
       badge.textContent = 'โหมดในเครื่อง (ไม่แชร์)';
       return;
     }
-    store = db;
-    badge.textContent = 'กำลังโหลดข้อมูลร่วม…';
-    const timer = setTimeout(() => { badge.textContent = 'เชื่อมต่อช้า ข้อมูลอาจไม่ล่าสุด'; }, 10000);
-    try {
-      db.collection('entries').onSnapshot(function (snap) {
-        lastRemote = snap.docs.map(d => ({ id: d.id, ...d.data() })).map(normalizeRow);
-        if (importing) return;
-        dataset = lastRemote;
-        if (!snap.metadata.fromCache) { clearTimeout(timer); }
-        badge.textContent = 'ซิงค์ร่วมกันแล้ว (' + dataset.length + ' รายการ)';
-        populateDeptDropdowns();
-        renderAllSheets();
-      }, function (err) {
-        clearTimeout(timer);
-        store = null;
-        badge.textContent = 'โหมดในเครื่อง (ไม่แชร์)';
-        showToast('เชื่อมต่อฐานข้อมูลร่วมไม่ได้ ใช้ข้อมูลในเครื่องแทน', 'error');
+    
+    badge.textContent = 'กำลังเชื่อมต่อ…';
+    
+    // Listen to Firebase Firestore changes in real-time
+    db.collection('activities').orderBy('date', 'desc').onSnapshot(function (snapshot) {
+      const realData = [];
+      snapshot.forEach(function (docSnap) {
+        const d = docSnap.data();
+        realData.push({
+          id: docSnap.id,
+          date: String(d.date || ''),
+          dept: String(d.dept || '-'),
+          lunch: num(d.lunch),
+          smoking: num(d.smoking),
+          offsite: num(d.offsite),
+          leave: num(d.leave),
+          total: typeof d.total === 'number' ? d.total : (num(d.lunch) + num(d.smoking) + num(d.offsite) + num(d.leave))
+        });
       });
-    } catch (e) {
-      clearTimeout(timer);
-      store = null;
+      
+      if (realData.length > 0) {
+        dataset = realData;
+      }
+      
+      badge.textContent = 'ซิงค์แบบเรียลไทม์ (' + dataset.length + ' รายการ)';
+      populateDeptDropdowns();
+      renderAllSheets();
+    }, function (error) {
+      console.error("Firestore sync error: ", error);
       badge.textContent = 'โหมดในเครื่อง (ไม่แชร์)';
-    }
-  }
-
-  function normalizeRow(d) {
-    const r = { id: d.id, date: String(d.date || ''), dept: String(d.dept || '-'), lunch: num(d.lunch), smoking: num(d.smoking), offsite: num(d.offsite), leave: num(d.leave) };
-    if (typeof d.total === 'number') r.total = d.total;
-    return r;
+    });
   }
 
   // ---------- Tabs ----------
@@ -847,37 +841,32 @@
     items.forEach(h => { const li = document.createElement('li'); li.innerHTML = h; ul.appendChild(li); });
   }
 
-  // ---------- Exports (saved through the viewer's download prompt) ----------
-  async function saveFile(filename, data) {
-    if (!downloads) {
-      showToast('มุมมองนี้ดาวน์โหลดไฟล์ไม่ได้ ลองเปิดจากหน้า Claude โดยตรง', 'error');
-      return;
-    }
-    try {
-      await downloads.save({ filename, data });
-      showToast('บันทึกไฟล์ ' + filename + ' เรียบร้อยแล้ว');
-    } catch (e) {
-      if (e && e.code === 'declined') showToast('ยกเลิกการบันทึกไฟล์', 'info');
-      else showToast('บันทึกไฟล์ไม่สำเร็จ (' + ((e && e.code) || 'unknown') + ')', 'error');
-    }
-  }
-
+  // ---------- Exports (Standard Client Downloads for Excel/PDF) ----------
   function downloadMemoImage() {
     showToast('กำลังสร้างไฟล์รูปภาพ PNG...', 'info');
     const element = document.getElementById('infographic-card');
     html2canvas(element, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
-      canvas.toBlob(blob => {
-        if (!blob) { showToast('สร้างรูปภาพไม่สำเร็จ', 'error'); return; }
-        saveFile('Memo_Summary_Infographic_' + localISO() + '.png', blob);
-      }, 'image/png');
+      const link = document.createElement('a');
+      link.download = 'Memo_Summary_Infographic_' + localISO() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('ดาวน์โหลดไฟล์รูปภาพเรียบร้อยแล้ว');
     }).catch(() => showToast('สร้างรูปภาพไม่สำเร็จ', 'error'));
   }
 
   function downloadMemoPDF() {
     showToast('กำลังเตรียมไฟล์ PDF...', 'info');
     const element = document.getElementById('infographic-card');
-    const opt = { margin: 0.2, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' } };
-    html2pdf().set(opt).from(element).outputPdf('blob').then(blob => saveFile('Memo_Summary_Infographic.pdf', blob)).catch(() => showToast('สร้าง PDF ไม่สำเร็จ', 'error'));
+    const opt = { 
+      margin: 0.2, 
+      filename: 'Memo_Summary_Infographic_' + localISO() + '.pdf',
+      image: { type: 'jpeg', quality: 0.98 }, 
+      html2canvas: { scale: 2 }, 
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' } 
+    };
+    html2pdf().set(opt).from(element).save().then(() => {
+      showToast('ดาวน์โหลด PDF เรียบร้อยแล้ว');
+    }).catch(() => showToast('สร้าง PDF ไม่สำเร็จ', 'error'));
   }
 
   function exportToExcel() {
@@ -894,15 +883,23 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Daily Activity Summary');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(deptRows), 'Department Totals');
-    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    saveFile('Daily_Activity_Summary_' + localISO() + '.xlsx', new Blob([out]));
+    XLSX.writeFile(wb, 'Daily_Activity_Summary_' + localISO() + '.xlsx');
+    showToast('ส่งออกไฟล์ Excel เรียบร้อยแล้ว');
   }
 
   function exportToPDF() {
     showToast('กำลังเตรียมไฟล์ PDF...', 'info');
     const element = document.getElementById('report-container');
-    const opt = { margin: 0.3, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' } };
-    html2pdf().set(opt).from(element).outputPdf('blob').then(blob => saveFile('Daily_Activity_Report.pdf', blob)).catch(() => showToast('สร้าง PDF ไม่สำเร็จ', 'error'));
+    const opt = { 
+      margin: 0.3, 
+      filename: 'Daily_Activity_Report_' + localISO() + '.pdf',
+      image: { type: 'jpeg', quality: 0.98 }, 
+      html2canvas: { scale: 2 }, 
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' } 
+    };
+    html2pdf().set(opt).from(element).save().then(() => {
+      showToast('ส่งออกไฟล์ PDF เรียบร้อยแล้ว');
+    }).catch(() => showToast('สร้าง PDF ไม่สำเร็จ', 'error'));
   }
 
   // ---------- Sheet 1: Summary ----------
@@ -943,7 +940,6 @@
   }
 
   function renderCharts(deptMap, depts) {
-    // Pie shows the 8 busiest departments; the rest are grouped so colors stay distinct.
     const top = depts.slice(0, 8), rest = depts.slice(8);
     const pieLabels = top.concat(rest.length ? ['อื่น ๆ (' + rest.length + ' แผนก)'] : []);
     const pieData = top.map(d => deptMap[d].total).concat(rest.length ? [rest.reduce((s, d) => s + deptMap[d].total, 0)] : []);
@@ -1076,8 +1072,8 @@
         '<td class="p-3 text-right text-rose-700">' + d.leave + '</td>' +
         '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + rowTotal(d).toLocaleString() + '</td>' +
         '<td class="p-3 text-center whitespace-nowrap">' +
-          '<button onclick="editEntry(\'' + esc(d.id) + '\')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="แก้ไข" aria-label="แก้ไข">' + ic('pen') + '</button>' +
-          '<button onclick="deleteEntry(\'' + esc(d.id) + '\')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded ' + (userRole !== 'Admin' ? 'hidden' : '') + '" title="ลบ" aria-label="ลบ">' + ic('trash') + '</button>' +
+          '<button onclick="editEntry('' + esc(d.id) + '')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="แก้ไข" aria-label="แก้ไข">' + ic('pen') + '</button>' +
+          '<button onclick="deleteEntry('' + esc(d.id) + '')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded ' + (userRole !== 'Admin' ? 'hidden' : '') + '" title="ลบ" aria-label="ลบ">' + ic('trash') + '</button>' +
         '</td>';
       tbody.appendChild(tr);
     });
@@ -1104,18 +1100,24 @@
     if (!body.date || !body.dept) return;
 
     try {
-      if (store) {
-        const ref = id ? store.collection('entries').doc(id) : store.collection('entries').doc();
-        await ref.set(body);
-      } else if (id) {
-        const idx = dataset.findIndex(d => d.id === id);
-        if (idx !== -1) dataset[idx] = { id, ...body };
+      if (typeof firebase !== 'undefined' && db) {
+        if (id) {
+          await db.collection('activities').doc(id).set(body, { merge: true });
+        } else {
+          await db.collection('activities').add(body);
+        }
       } else {
-        dataset.unshift({ id: 'l' + Date.now(), ...body });
+        if (id) {
+          const idx = dataset.findIndex(d => d.id === id);
+          if (idx !== -1) dataset[idx] = { id, ...body };
+        } else {
+          dataset.unshift({ id: 'l' + Date.now(), ...body });
+        }
       }
       showToast(id ? 'อัปเดตข้อมูลเรียบร้อยแล้ว' : 'บันทึกข้อมูลใหม่เข้าสู่ระบบแล้ว');
     } catch (err) {
-      showToast('บันทึกไม่สำเร็จ บัญชีนี้อาจไม่มีสิทธิ์แก้ไขข้อมูลร่วม', 'error');
+      console.error(err);
+      showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
       return;
     }
     resetForm();
@@ -1166,15 +1168,19 @@
     closeConfirm();
     if (!id) return;
     try {
-      if (store) await store.collection('entries').doc(id).delete();
-      else dataset = dataset.filter(d => d.id !== id);
+      if (typeof firebase !== 'undefined' && db) {
+        await db.collection('activities').doc(id).delete();
+      } else {
+        dataset = dataset.filter(d => d.id !== id);
+      }
+      showToast('ลบรายการออกจากระบบเรียบร้อยแล้ว', 'info');
     } catch (err) {
-      showToast('ลบไม่สำเร็จ บัญชีนี้อาจไม่มีสิทธิ์แก้ไขข้อมูลร่วม', 'error');
+      console.error(err);
+      showToast('เกิดข้อผิดพลาดในการลบรายการ', 'error');
       return;
     }
     populateDeptDropdowns();
     renderAllSheets();
-    showToast('ลบรายการออกจากระบบเรียบร้อยแล้ว', 'info');
   }
 
   function resetForm() {
@@ -1186,7 +1192,7 @@
     calcFormTotal();
   }
 
-  // ---------- File drop: spreadsheets are read straight into the app ----------
+  // ---------- File drop: spreadsheets ----------
   function handleDragOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('border-emerald-500', 'bg-emerald-50/50'); }
   function handleDragLeave(e) { e.preventDefault(); document.getElementById('dropzone').classList.remove('border-emerald-500', 'bg-emerald-50/50'); }
   function handleDrop(e) { e.preventDefault(); handleDragLeave(e); processFiles(e.dataTransfer.files); }
@@ -1198,7 +1204,6 @@
     return isNaN(n) ? 0 : n;
   };
 
-  // Accepts Excel serial numbers, 19/10/26, 2/11/2026 (also Buddhist years) and 2026-11-05.
   function toISODate(v) {
     if (v == null || v === '') return null;
     let y, m, d;
@@ -1219,7 +1224,6 @@
     return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   }
 
-  // Finds the header row ("วันที่" + "แผนก"), carries merged dates down, skips subtotal rows, and merges same date+department.
   function parseSheet(ws) {
     const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: false });
     const hi = grid.findIndex(r => r.some(c => String(c == null ? '' : c).trim() === 'วันที่') && r.some(c => /แผนก/.test(String(c == null ? '' : c))));
@@ -1260,23 +1264,6 @@
     return null;
   }
 
-  function hash5(str) { let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h.toString(36).slice(0, 5); }
-  // Same date + department always maps to the same document, so re-dropping a file never duplicates rows.
-  const docIdFor = (date, dept) => date.replace(/-/g, '') + '_' + (dept.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'dept') + '_' + hash5(dept);
-  const bodyOf = r => ({ date: r.date, dept: r.dept, lunch: r.lunch, smoking: r.smoking, offsite: r.offsite, leave: r.leave, total: r.total });
-
-  async function runPool(jobs, size, tick) {
-    let i = 0, failed = null;
-    const worker = async () => {
-      while (!failed && i < jobs.length) {
-        const job = jobs[i++];
-        try { await job(); if (tick) tick(); } catch (e) { failed = failed || e; }
-      }
-    };
-    await Promise.all(Array.from({ length: size }, worker));
-    if (failed) throw failed;
-  }
-
   function setImportStatus(text, kind) {
     const el = document.getElementById('import-status');
     el.className = 'mt-4 text-xs font-semibold rounded-lg p-3 border ' + (kind === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800');
@@ -1284,53 +1271,23 @@
   }
 
   async function applyImport(rows) {
-    const dates = new Set(rows.map(r => r.date));
-    const sortedDates = Array.from(dates).sort();
-    const incoming = rows.map(r => Object.assign({ id: docIdFor(r.date, r.dept) }, r));
-    const newIds = new Set(incoming.map(r => r.id));
-    const stale = dataset.filter(d => dates.has(d.date) && !newIds.has(d.id));
-    const grand = rows.reduce((s, r) => s + r.total, 0);
-    const summary = 'นำเข้า ' + rows.length + ' รายการ จาก ' + dates.size + ' วัน (' + thRange(sortedDates[0], sortedDates[sortedDates.length - 1]) + ') ยอดรวม ' + grand.toLocaleString() + ' คน-ครั้ง';
-
-    // Show the data immediately; the shared db catches up in the background.
-    if (store) importing = true;
-    dataset = dataset.filter(d => !dates.has(d.date)).concat(incoming);
-    document.getElementById('memo-filter-date').value = sortedDates[sortedDates.length - 1];
-    document.getElementById('daily-filter-date').value = '';
+    if (typeof firebase !== 'undefined' && db) {
+      const batch = db.batch();
+      rows.forEach(r => {
+        const docRef = db.collection('activities').doc();
+        batch.set(docRef, r);
+      });
+      await batch.commit();
+    } else {
+      dataset = dataset.concat(rows);
+    }
     populateDeptDropdowns();
     renderAllSheets();
     switchTab('summary');
-
-    if (!store) {
-      setImportStatus(summary + ' (โหมดในเครื่อง ข้อมูลไม่ถูกแชร์)', 'ok');
-      showToast('แสดงข้อมูลจากไฟล์แล้ว');
-      return { failed: false, summary };
-    }
-
-    const badge = document.getElementById('sync-badge');
-    const jobs = incoming.map(r => () => store.collection('entries').doc(r.id).set(bodyOf(r)))
-      .concat(stale.map(d => () => store.collection('entries').doc(d.id).delete()));
-    let done = 0;
-    badge.textContent = 'กำลังบันทึกลงฐานข้อมูลร่วม 0/' + jobs.length;
-    showToast('แสดงข้อมูลจากไฟล์แล้ว กำลังบันทึกลงฐานข้อมูลร่วม', 'info');
-    try {
-      await runPool(jobs, 6, () => { done++; badge.textContent = 'กำลังบันทึกลงฐานข้อมูลร่วม ' + done + '/' + jobs.length; });
-    } catch (err) {
-      importing = false;
-      if (lastRemote) dataset = lastRemote;
-      populateDeptDropdowns();
-      renderAllSheets();
-      badge.textContent = 'ซิงค์ร่วมกันแล้ว (' + dataset.length + ' รายการ)';
-      const msg = 'บันทึกลงฐานข้อมูลร่วมไม่สำเร็จ บัญชีนี้อาจไม่มีสิทธิ์เขียนข้อมูลร่วม หน้าจอกลับไปแสดงข้อมูลที่อยู่ในฐานข้อมูลเดิม';
-      setImportStatus(msg, 'error');
-      showToast('บันทึกลงฐานข้อมูลร่วมไม่สำเร็จ', 'error');
-      return { failed: true, summary: msg };
-    }
-    importing = false;
-    badge.textContent = 'ซิงค์ร่วมกันแล้ว (' + dataset.length + ' รายการ)';
-    setImportStatus(summary, 'ok');
-    showToast('นำเข้าข้อมูล ' + rows.length + ' รายการเรียบร้อยแล้ว');
-    return { failed: false, summary };
+    const msg = 'นำเข้า ' + rows.length + ' รายการเรียบร้อยแล้ว';
+    setImportStatus(msg, 'ok');
+    showToast(msg);
+    return { failed: false, summary: msg };
   }
 
   async function processFiles(files) {
@@ -1349,12 +1306,11 @@
             showToast('อ่านข้อมูลจากไฟล์ไม่ได้', 'error');
           } else {
             const res = await applyImport(rows);
-            entry.status = res.failed ? 'บันทึกลงฐานข้อมูลร่วมไม่สำเร็จ' : 'นำเข้า ' + rows.length + ' รายการ';
+            entry.status = res.failed ? 'นำเข้าไม่สำเร็จ' : 'นำเข้า ' + rows.length + ' รายการ';
             entry.ok = !res.failed;
           }
         } catch (err) {
-          importing = false;
-          entry.status = 'เปิดไฟล์ไม่สำเร็จ ไฟล์อาจเสียหรือมีรหัสผ่าน';
+          entry.status = 'เปิดไฟล์ไม่สำเร็จ';
           entry.ok = false;
           setImportStatus(f.name + ': ' + entry.status, 'error');
           showToast('เปิดไฟล์ไม่สำเร็จ', 'error');
@@ -1432,9 +1388,8 @@
 
 <!-- 3. ส่วนตั้งค่าและเริ่มใช้งาน Firebase (Initialization) -->
 <script>
-    // กำหนดค่า Configuration ของโปรเจกต์คุณ (นำ Project ID หรือค่า Config มาใส่)
+    // กำหนดค่า Configuration ของโปรเจกต์คุณ
     const firebaseConfig = {
-        // เปลี่ยนเป็น Project ID ของคุณ
         projectId: "it-duty-check-85e04"
     };
 
