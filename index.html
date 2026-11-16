@@ -570,7 +570,8 @@
   let db = null;
   let isFirebaseLoaded = false;
 
-  const num = v => parseInt(v, 10) || 0;
+  // FIX: Use Math.round(parseFloat(v)) instead of parseInt(v, 10) to prevent truncation of floating-point sums/values from Excel
+  const num = v => Math.round(parseFloat(v)) || 0;
   const catSum = d => (num(d.lunch) + num(d.smoking) + num(d.offsite) + num(d.leave));
   const rowTotal = d => (typeof d.total === 'number' ? d.total : catSum(d));
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -633,7 +634,7 @@
           smoking: num(d.smoking),
           offsite: num(d.offsite),
           leave: num(d.leave),
-          total: typeof d.total === 'number' ? d.total : (num(d.lunch) + num(d.smoking) + num(d.offsite) + num(d.leave))
+          total: typeof d.total === 'number' ? num(d.total) : (num(d.lunch) + num(d.smoking) + num(d.offsite) + num(d.leave))
         });
       });
 
@@ -689,11 +690,11 @@
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="p-3 text-center font-bold text-slate-800">' + esc(dept) + '</td>' +
-        '<td class="p-3 text-right">' + dt.lunch + '</td>' +
-        '<td class="p-3 text-right text-amber-700">' + dt.smoking + '</td>' +
-        '<td class="p-3 text-right text-indigo-700">' + dt.offsite + '</td>' +
-        '<td class="p-3 text-right text-rose-700">' + dt.leave + '</td>' +
-        '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + dt.total + '</td>' +
+        '<td class="p-3 text-right">' + dt.lunch.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-amber-700">' + dt.smoking.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-indigo-700">' + dt.offsite.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-rose-700">' + dt.leave.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + dt.total.toLocaleString() + '</td>' +
         '<td class="p-3 text-right font-semibold text-slate-600">' + pct + '%</td>';
       tbody.appendChild(tr);
     });
@@ -746,21 +747,21 @@
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="p-2 border border-slate-300 text-left pl-3 font-extrabold text-slate-800">' + esc(dept) + '</td>' +
-        '<td class="p-2 border border-slate-300 text-center">' + i.lunch + '</td>' +
-        '<td class="p-2 border border-slate-300 text-center">' + i.smoking + '</td>' +
-        '<td class="p-2 border border-slate-300 text-center">' + i.offsite + '</td>' +
-        '<td class="p-2 border border-slate-300 text-center">' + i.leave + '</td>' +
-        '<td class="p-2 border border-slate-300 text-center bg-slate-100 font-black text-slate-900">' + i.total + '</td>';
+        '<td class="p-2 border border-slate-300 text-center">' + i.lunch.toLocaleString() + '</td>' +
+        '<td class="p-2 border border-slate-300 text-center">' + i.smoking.toLocaleString() + '</td>' +
+        '<td class="p-2 border border-slate-300 text-center">' + i.offsite.toLocaleString() + '</td>' +
+        '<td class="p-2 border border-slate-300 text-center">' + i.leave.toLocaleString() + '</td>' +
+        '<td class="p-2 border border-slate-300 text-center bg-slate-100 font-black text-slate-900">' + i.total.toLocaleString() + '</td>';
       tbody.appendChild(tr);
     });
 
-    document.getElementById('memo-total-lunch').innerText = t.lunch;
-    document.getElementById('memo-total-smoking').innerText = t.smoking;
-    document.getElementById('memo-total-offsite').innerText = t.offsite;
-    document.getElementById('memo-total-leave').innerText = t.leave;
-    document.getElementById('memo-grand-total').innerText = t.total;
-    document.getElementById('memo-widget-total').innerText = t.total;
-    document.getElementById('memo-chart-center-total').innerText = t.total;
+    document.getElementById('memo-total-lunch').innerText = t.lunch.toLocaleString();
+    document.getElementById('memo-total-smoking').innerText = t.smoking.toLocaleString();
+    document.getElementById('memo-total-offsite').innerText = t.offsite.toLocaleString();
+    document.getElementById('memo-total-leave').innerText = t.leave.toLocaleString();
+    document.getElementById('memo-grand-total').innerText = t.total.toLocaleString();
+    document.getElementById('memo-widget-total').innerText = t.total.toLocaleString();
+    document.getElementById('memo-chart-center-total').innerText = t.total.toLocaleString();
     document.getElementById('memo-widget-dept-count').innerText = 'รวม ' + depts.length + ' หน่วยงาน';
 
     renderMemoDonut(t);
@@ -830,18 +831,17 @@
         '<td class="p-3 text-center text-slate-400 font-mono">' + (idx + 1) + '</td>' +
         '<td class="p-3 font-medium text-slate-800">' + esc(d.date) + '</td>' +
         '<td class="p-3"><span class="bg-slate-100 font-bold px-2 py-0.5 rounded text-slate-700">' + esc(d.dept) + '</span></td>' +
-        '<td class="p-3 text-right">' + d.lunch + '</td>' +
-        '<td class="p-3 text-right text-amber-700">' + d.smoking + '</td>' +
-        '<td class="p-3 text-right text-indigo-700">' + d.offsite + '</td>' +
-        '<td class="p-3 text-right text-rose-700">' + d.leave + '</td>' +
-        '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + rowTotal(d) + '</td>' +
+        '<td class="p-3 text-right">' + d.lunch.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-amber-700">' + d.smoking.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-indigo-700">' + d.offsite.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-rose-700">' + d.leave.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + rowTotal(d).toLocaleString() + '</td>' +
         '<td class="p-3 text-center">' +
           '<button type="button" onclick="deleteEntry(&quot;' + d.id + '&quot;)" class="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer" title="ลบรายการนี้">' + ic('trash') + '</button>' +
         '</td>';
       tbody.appendChild(tr);
     });
 
-    // Reset select all checkbox
     const selectAllCb = document.getElementById('select-all-checkbox');
     if (selectAllCb) selectAllCb.checked = false;
     updateSelectedCount();
@@ -874,13 +874,11 @@
 
     const idsToDelete = Array.from(checkboxes).map(cb => cb.value);
     
-    // Remove from local dataset immediately
     dataset = dataset.filter(d => !idsToDelete.includes(d.id));
     populateDeptDropdowns();
     renderAllSheets();
     showToast('ลบรายการที่เลือกเรียบร้อยแล้ว (' + idsToDelete.length + ' รายการ)', 'error');
 
-    // Remove from Firestore if active
     if (db) {
       try {
         const batch = db.batch();
@@ -976,11 +974,11 @@
       tr.innerHTML =
         '<td class="p-3 text-center">' + esc(d.date) + '</td>' +
         '<td class="p-3 text-center font-bold">' + esc(d.dept) + '</td>' +
-        '<td class="p-3 text-right">' + d.lunch + '</td>' +
-        '<td class="p-3 text-right text-amber-700">' + d.smoking + '</td>' +
-        '<td class="p-3 text-right text-indigo-700">' + d.offsite + '</td>' +
-        '<td class="p-3 text-right text-rose-700">' + d.leave + '</td>' +
-        '<td class="p-3 text-right font-bold text-emerald-700">' + rowTotal(d) + '</td>';
+        '<td class="p-3 text-right">' + d.lunch.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-amber-700">' + d.smoking.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-indigo-700">' + d.offsite.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right text-rose-700">' + d.leave.toLocaleString() + '</td>' +
+        '<td class="p-3 text-right font-bold text-emerald-700">' + rowTotal(d).toLocaleString() + '</td>';
       tbody.appendChild(tr);
     });
   }
@@ -998,11 +996,11 @@
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td class="p-3 font-bold">สัปดาห์ปัจจุบัน</td>' +
-      '<td class="p-3 text-right">' + t.lunch + '</td>' +
-      '<td class="p-3 text-right text-amber-700">' + t.smoking + '</td>' +
-      '<td class="p-3 text-right text-indigo-700">' + t.offsite + '</td>' +
-      '<td class="p-3 text-right text-rose-700">' + t.leave + '</td>' +
-      '<td class="p-3 text-right font-bold text-emerald-700">' + t.total + '</td>' +
+      '<td class="p-3 text-right">' + t.lunch.toLocaleString() + '</td>' +
+      '<td class="p-3 text-right text-amber-700">' + t.smoking.toLocaleString() + '</td>' +
+      '<td class="p-3 text-right text-indigo-700">' + t.offsite.toLocaleString() + '</td>' +
+      '<td class="p-3 text-right text-rose-700">' + t.leave.toLocaleString() + '</td>' +
+      '<td class="p-3 text-right font-bold text-emerald-700">' + t.total.toLocaleString() + '</td>' +
       '<td class="p-3 text-right text-blue-700 font-bold">' + (t.total / 7).toFixed(1) + '</td>';
     tbody.appendChild(tr);
   }
@@ -1167,7 +1165,7 @@
       renderAllSheets();
       showToast('นำเข้าข้อมูลสำเร็จ ' + totalImported + ' รายการ');
     } else {
-      someToast('ไม่พบข้อมูลที่สามารถนำเข้าได้ในไฟล์', 'error');
+      showToast('ไม่พบข้อมูลที่สามารถนำเข้าได้ในไฟล์', 'error');
     }
   }
 
