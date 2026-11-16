@@ -487,7 +487,7 @@
               <th class="p-3 text-right">พักกลางวัน</th>
               <th class="p-3 text-right">สูบบุหรี่</th>
               <th class="p-3 text-right">นอกสถานที่</th>
-              <th class="p-3 text-right">ลาครึ่งวัน</th>
+              <th class="p-3 text-right">ลางานครึ่งวัน</th>
               <th class="p-3 text-right bg-emerald-50 text-emerald-800">ยอดรวม</th>
               <th class="p-3 text-center">จัดการ</th>
             </tr>
@@ -877,18 +877,20 @@
   }
 
   async function deleteEntry(id) {
-    try {
-      if (db) {
-        await db.collection('activities').doc(id).delete();
-      } else {
-        dataset = dataset.filter(d => d.id !== id);
-      }
-      showToast('ลบรายการเรียบร้อยแล้ว', 'error');
-    } catch (err) {
-      console.error(err);
-      showToast('เกิดข้อผิดพลาดในการลบ', 'error');
-    }
+    // 1. Remove from local dataset immediately for instant feedback
+    dataset = dataset.filter(d => d.id !== id);
+    populateDeptDropdowns();
     renderAllSheets();
+    showToast('ลบรายการเรียบร้อยแล้ว', 'error');
+
+    // 2. If Firestore is active, delete from remote as well
+    if (db) {
+      try {
+        await db.collection('activities').doc(id).delete();
+      } catch (err) {
+        console.warn("Could not delete from Firestore (might be local-only entry):", err);
+      }
+    }
   }
 
   function resetForm() {
@@ -969,7 +971,7 @@
     setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
   }
 
-  // ---------- Spreadsheet Drag & Drop Import ----------
+  // ---------- Spreadsheet Drag & Drop Import (Advanced Parser) ----------
   function handleDragOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('border-emerald-500', 'bg-emerald-50/50'); }
   function handleDragLeave(e) { e.preventDefault(); document.getElementById('dropzone').classList.remove('border-emerald-500', 'bg-emerald-50/50'); }
   function handleDrop(e) { e.preventDefault(); handleDragLeave(e); processFiles(e.dataTransfer.files); }
@@ -977,18 +979,135 @@
 
   async function processFiles(files) {
     if (!files || !files.length) return;
+    let totalImported = 0;
+
     for (const f of Array.from(files)) {
       if (/\.(xlsx|xlsm|xls|csv)$/i.test(f.name)) {
         try {
           const buf = await f.arrayBuffer();
           const wb = XLSX.read(buf, { type: 'array' });
-          const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-          showToast('อ่านไฟล์สำเร็จ ' + rows.length + ' แถว');
+          
+          // Check for 'Daily Activity Summary' sheet or use first sheet
+          let sheetName = wb.SheetNames.includes('Daily Activity Summary') ? 'Daily Activity Summary' : wb.SheetNames[0];
+          const ws = wb.Sheets[sheetName];
+          const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+          let currentDate = localISO();
+          let newEntries = [];
+
+          for (let i = 0; i < rawRows.length; i++) {
+            const r = rawRows[i];
+            if (!r || r.length === 0) continue;
+
+            let col0 = r[0] !== undefined && r[0] !== null ? String(r[0]).trim() : '';
+            let col1 = r[1] !== undefined && r[1] !== null ? String(r[1]).trim() : '';
+
+            // Check if col0 has a date
+            if (col0 && !col0.includes('รายงาน') && !col0.includes('วันที่') && !col0.includes('Grand Total')) {
+              let parsedD = parseExcelDate(col0);
+              if (parsedD) currentDate = parsedD;
+            }
+
+            // Skip summary rows
+            if (col1.includes('รวม') || col1.includes('Grand Total') || col1 === '') {
+              continue;
+            }
+
+            // If col1 is a department name and row has numbers
+            if (col1 && !col1.includes('แผนก') && !col1.includes('รายงาน')) {
+              let lunch = num(r[3] !== undefined ? r[3] : r[2]);
+              let smoking = num(r[4]);
+              let offsite = num(r[5]);
+              let leave = num(r[6]);
+
+              // If columns are shifted
+              if (r.length >= 6 && typeof r[2] === 'number' && typeof r[3] === 'number') {
+                lunch = num(r[3]);
+                smoking = num(r[4]);
+                offsite = num(r[5]);
+                leave = num(r[6]);
+              }
+
+              let total = lunch + smoking + offsite + leave;
+              if (total > 0 || col1) {
+                let entryItem = {
+                  id: 'imp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                  date: currentDate,
+                  dept: col1.toUpperCase(),
+                  lunch: lunch,
+                  smoking: smoking,
+                  offsite: offsite,
+                  leave: leave,
+                  total: total
+                };
+                newEntries.push(entryItem);
+              }
+            }
+          }
+
+          if (newEntries.length > 0) {
+            for (const item of newEntries) {
+              if (db) {
+                await db.collection('activities').add(item);
+              } else {
+                dataset.unshift(item);
+              }
+            }
+            totalImported += newEntries.length;
+          } else {
+            // Fallback to standard JSON parsing if custom parser finds 0 rows
+            const fallbackRows = XLSX.utils.sheet_to_json(ws);
+            fallbackRows.forEach(row => {
+              let item = {
+                id: 'imp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                date: String(row['วันที่'] || row['Date'] || localISO()),
+                dept: String(row['แผนก'] || row['Department'] || 'GENERAL').toUpperCase(),
+                lunch: num(row['พักกลางวัน'] || row['พักเที่ยง']),
+                smoking: num(row['สูบบุหรี่']),
+                offsite: num(row['ทำงานนอกสถานที่'] || row['นอกสถานที่']),
+                leave: num(row['ลางานครึ่งวัน'])
+              };
+              item.total = catSum(item);
+              dataset.unshift(item);
+              totalImported++;
+            });
+          }
+
         } catch (err) {
-          showToast('อ่านไฟล์ไม่สำเร็จ', 'error');
+          console.error("File parse error:", err);
+          showToast('อ่านไฟล์ไม่สำเร็จ กรุณาตรวจสอบรูปแบบไฟล์', 'error');
+          return;
         }
       }
     }
+
+    if (totalImported > 0) {
+      populateDeptDropdowns();
+      renderAllSheets();
+      showToast('นำเข้าข้อมูลสำเร็จ ' + totalImported + ' รายการ');
+    } else {
+      showToast('ไม่พบข้อมูลที่สามารถนำเข้าได้ในไฟล์', 'error');
+    }
+  }
+
+  function parseExcelDate(val) {
+    if (!val) return null;
+    if (typeof val === 'number') {
+      // Excel serial date
+      const d = new Date(Math.round((val - (25567 + 2)) * 86400 * 1000));
+      return d.toISOString().slice(0, 10);
+    }
+    let s = String(val).trim();
+    if (/^\d{2}\/\d{2}\/\d{2}$/.test(s)) {
+      let parts = s.split('/');
+      let yy = parseInt(parts[2], 10);
+      let year = yy < 50 ? 2000 + yy : 1900 + yy;
+      return year + '-' + parts[1] + '-' + parts[0];
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s.slice(0, 10))) {
+      return s.slice(0, 10);
+    }
+    return null;
   }
 </script>
 </body>
