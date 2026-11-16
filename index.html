@@ -841,7 +841,7 @@
         '<td class="p-3 text-right text-rose-700">' + d.leave + '</td>' +
         '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + rowTotal(d) + '</td>' +
         '<td class="p-3 text-center">' +
-          '<button type="button" onclick="deleteEntry('' + d.id + '')" class="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer">' + ic('trash') + '</button>' +
+          '<button type="button" onclick="deleteEntry(&quot;' + d.id + '&quot;)" class="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer">' + ic('trash') + '</button>' +
         '</td>';
       tbody.appendChild(tr);
     });
