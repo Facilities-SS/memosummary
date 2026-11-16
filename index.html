@@ -548,7 +548,7 @@
     });
   }
 
-  // ---------- Sample Initial Data ----------
+  // ---------- Sample Initial Data (Fallback) ----------
   let dataset = [
     { id: 'e1',  date: '2026-11-05', dept: 'PD',           lunch: 55, smoking: 21, offsite: 0, leave: 1 },
     { id: 'e2',  date: '2026-11-05', dept: 'EN',           lunch: 73, smoking: 0,  offsite: 0, leave: 0 },
@@ -564,6 +564,7 @@
   let memoCurrentMode = 'daily';
   let pieChartInstance = null, stackedBarChartInstance = null, memoDonutChartInstance = null;
   let db = null;
+  let isFirebaseLoaded = false;
 
   const num = v => parseInt(v, 10) || 0;
   const catSum = d => (num(d.lunch) + num(d.smoking) + num(d.offsite) + num(d.leave));
@@ -588,8 +589,12 @@
   window.addEventListener('load', function () {
     hydrateIcons();
     document.getElementById('entry-date').value = localISO();
+    
+    // Render initial fallback data immediately so screen is never blank!
     populateDeptDropdowns();
     renderAllSheets();
+
+    // Init Firebase in background
     initFirebaseRealtime();
 
     document.getElementById('dropzone').addEventListener('click', function (e) {
@@ -636,6 +641,7 @@
       if (realData.length > 0) {
         dataset = realData;
       }
+      isFirebaseLoaded = true;
       badge.textContent = 'ซิงค์แบบเรียลไทม์ (' + dataset.length + ' รายการ)';
       populateDeptDropdowns();
       renderAllSheets();
@@ -835,7 +841,7 @@
         '<td class="p-3 text-right text-rose-700">' + d.leave + '</td>' +
         '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + rowTotal(d) + '</td>' +
         '<td class="p-3 text-center">' +
-          '<button onclick="deleteEntry('' + d.id + '')" class="p-1 text-rose-600 hover:bg-rose-50 rounded">' + ic('trash') + '</button>' +
+          '<button type="button" onclick="deleteEntry('' + d.id + '')" class="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer">' + ic('trash') + '</button>' +
         '</td>';
       tbody.appendChild(tr);
     });
@@ -899,6 +905,7 @@
   function populateDeptDropdowns() {
     const depts = [...new Set(dataset.map(d => d.dept))].sort();
     const filterSelect = document.getElementById('daily-filter-dept');
+    if (!filterSelect) return;
     filterSelect.innerHTML = '<option value="ALL">ทุกแผนก</option>';
     depts.forEach(dept => {
       const opt = document.createElement('option');
@@ -947,7 +954,7 @@
       '<td class="p-3 text-right text-rose-700">' + t.leave + '</td>' +
       '<td class="p-3 text-right font-bold text-emerald-700">' + t.total + '</td>' +
       '<td class="p-3 text-right text-blue-700 font-bold">' + (t.total / 7).toFixed(1) + '</td>';
-    tbody.innerHTML = tr.outerHTML;
+    tbody.appendChild(tr);
   }
 
   function toggleUserRole() {
