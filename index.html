@@ -11,7 +11,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   
-  <!-- Icon & PWA Snippets -->
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -548,7 +547,6 @@
     });
   }
 
-  // ---------- Sample Initial Data (Fallback) ----------
   let dataset = [
     { id: 'e1',  date: '2026-11-05', dept: 'PD',           lunch: 55, smoking: 21, offsite: 0, leave: 1 },
     { id: 'e2',  date: '2026-11-05', dept: 'EN',           lunch: 73, smoking: 0,  offsite: 0, leave: 0 },
@@ -585,16 +583,11 @@
     return { deptMap, t };
   }
 
-  // ---------- Window Load & Firebase ----------
   window.addEventListener('load', function () {
     hydrateIcons();
     document.getElementById('entry-date').value = localISO();
-    
-    // Render initial fallback data immediately so screen is never blank!
     populateDeptDropdowns();
     renderAllSheets();
-
-    // Init Firebase in background
     initFirebaseRealtime();
 
     document.getElementById('dropzone').addEventListener('click', function (e) {
@@ -651,7 +644,6 @@
     });
   }
 
-  // ---------- Navigation ----------
   function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('.excel-tab-btn').forEach(btn => btn.classList.remove('excel-tab-active'));
@@ -673,7 +665,6 @@
     renderEntrySheetTable();
   }
 
-  // ---------- Sheet 1: Summary ----------
   function renderSummarySheet() {
     const { deptMap, t } = aggregate(dataset);
     document.getElementById('kpi-total').innerText = t.total.toLocaleString();
@@ -733,7 +724,6 @@
     });
   }
 
-  // ---------- Sheet 2: Memo Infographic ----------
   function setMemoMode(mode) {
     memoCurrentMode = mode;
     renderInfographicCard();
@@ -783,7 +773,6 @@
     });
   }
 
-  // ---------- Exports Functions ----------
   function exportToExcel() {
     showToast('กำลังดาวน์โหลดไฟล์ Excel...', 'info');
     const rows = sortedData().map((d, i) => ({
@@ -822,7 +811,6 @@
       .then(() => showToast('ดาวน์โหลด PDF เรียบร้อยแล้ว'));
   }
 
-  // ---------- Entry & Form Functions ----------
   function renderEntrySheetTable() {
     const tbody = document.getElementById('entry-table-tbody');
     tbody.innerHTML = '';
@@ -877,18 +865,16 @@
   }
 
   async function deleteEntry(id) {
-    // 1. Remove from local dataset immediately for instant feedback
     dataset = dataset.filter(d => d.id !== id);
     populateDeptDropdowns();
     renderAllSheets();
     showToast('ลบรายการเรียบร้อยแล้ว', 'error');
 
-    // 2. If Firestore is active, delete from remote as well
     if (db) {
       try {
         await db.collection('activities').doc(id).delete();
       } catch (err) {
-        console.warn("Could not delete from Firestore (might be local-only entry):", err);
+        console.warn("Could not delete from Firestore:", err);
       }
     }
   }
@@ -971,7 +957,6 @@
     setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
   }
 
-  // ---------- Spreadsheet Drag & Drop Import (Advanced Parser) ----------
   function handleDragOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('border-emerald-500', 'bg-emerald-50/50'); }
   function handleDragLeave(e) { e.preventDefault(); document.getElementById('dropzone').classList.remove('border-emerald-500', 'bg-emerald-50/50'); }
   function handleDrop(e) { e.preventDefault(); handleDragLeave(e); processFiles(e.dataTransfer.files); }
@@ -987,7 +972,6 @@
           const buf = await f.arrayBuffer();
           const wb = XLSX.read(buf, { type: 'array' });
           
-          // Check for 'Daily Activity Summary' sheet or use first sheet
           let sheetName = wb.SheetNames.includes('Daily Activity Summary') ? 'Daily Activity Summary' : wb.SheetNames[0];
           const ws = wb.Sheets[sheetName];
           const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
@@ -1002,25 +986,21 @@
             let col0 = r[0] !== undefined && r[0] !== null ? String(r[0]).trim() : '';
             let col1 = r[1] !== undefined && r[1] !== null ? String(r[1]).trim() : '';
 
-            // Check if col0 has a date
             if (col0 && !col0.includes('รายงาน') && !col0.includes('วันที่') && !col0.includes('Grand Total')) {
               let parsedD = parseExcelDate(col0);
               if (parsedD) currentDate = parsedD;
             }
 
-            // Skip summary rows
             if (col1.includes('รวม') || col1.includes('Grand Total') || col1 === '') {
               continue;
             }
 
-            // If col1 is a department name and row has numbers
             if (col1 && !col1.includes('แผนก') && !col1.includes('รายงาน')) {
               let lunch = num(r[3] !== undefined ? r[3] : r[2]);
               let smoking = num(r[4]);
               let offsite = num(r[5]);
               let leave = num(r[6]);
 
-              // If columns are shifted
               if (r.length >= 6 && typeof r[2] === 'number' && typeof r[3] === 'number') {
                 lunch = num(r[3]);
                 smoking = num(r[4]);
@@ -1055,22 +1035,61 @@
             }
             totalImported += newEntries.length;
           } else {
-            // Fallback to standard JSON parsing if custom parser finds 0 rows
-            const fallbackRows = XLSX.utils.sheet_to_json(ws);
-            fallbackRows.forEach(row => {
-              let item = {
-                id: 'imp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                date: String(row['วันที่'] || row['Date'] || localISO()),
-                dept: String(row['แผนก'] || row['Department'] || 'GENERAL').toUpperCase(),
-                lunch: num(row['พักกลางวัน'] || row['พักเที่ยง']),
-                smoking: num(row['สูบบุหรี่']),
-                offsite: num(row['ทำงานนอกสถานที่'] || row['นอกสถานที่']),
-                leave: num(row['ลางานครึ่งวัน'])
-              };
-              item.total = catSum(item);
-              dataset.unshift(item);
-              totalImported++;
-            });
+            const summarySheet = wb.SheetNames.includes('Summary') ? wb.Sheets['Summary'] : ws;
+            const summaryRows = XLSX.utils.sheet_to_json(summarySheet, { header: 1 });
+            let deptSummaryEntries = [];
+            
+            for (let i = 8; i <= 28; i++) {
+              if (summaryRows[i] && summaryRows[i][1]) {
+                let dName = String(summaryRows[i][1]).trim();
+                if (dName && !dName.includes('แผนก') && !dName.includes('Grand Total') && !dName.includes('รวมทั้งสิ้น')) {
+                  let tot = num(summaryRows[i][2]);
+                  let lunch = num(summaryRows[i][3]);
+                  let smoking = num(summaryRows[i][4]);
+                  let offsite = num(summaryRows[i][5]);
+                  let leave = num(summaryRows[i][6]);
+                  
+                  if (tot > 0 || lunch > 0) {
+                    deptSummaryEntries.push({
+                      id: 'sum_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                      date: localISO(),
+                      dept: dName.toUpperCase(),
+                      lunch: lunch,
+                      smoking: smoking,
+                      offsite: offsite,
+                      leave: leave,
+                      total: tot
+                    });
+                  }
+                }
+              }
+            }
+
+            if (deptSummaryEntries.length > 0) {
+              dataset = deptSummaryEntries;
+              totalImported = deptSummaryEntries.length;
+              if (db) {
+                for (const item of deptSummaryEntries) {
+                  await db.collection('activities').add(item);
+                }
+              }
+            } else {
+              const fallbackRows = XLSX.utils.sheet_to_json(ws);
+              fallbackRows.forEach(row => {
+                let item = {
+                  id: 'imp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                  date: String(row['วันที่'] || row['Date'] || localISO()),
+                  dept: String(row['แผนก'] || row['Department'] || 'GENERAL').toUpperCase(),
+                  lunch: num(row['พักกลางวัน'] || row['พักเที่ยง']),
+                  smoking: num(row['สูบบุหรี่']),
+                  offsite: num(row['ทำงานนอกสถานที่'] || row['นอกสถานที่']),
+                  leave: num(row['ลางานครึ่งวัน'])
+                };
+                item.total = catSum(item);
+                dataset.unshift(item);
+                totalImported++;
+              });
+            }
           }
 
         } catch (err) {
@@ -1093,7 +1112,6 @@
   function parseExcelDate(val) {
     if (!val) return null;
     if (typeof val === 'number') {
-      // Excel serial date
       const d = new Date(Math.round((val - (25567 + 2)) * 86400 * 1000));
       return d.toISOString().slice(0, 10);
     }
