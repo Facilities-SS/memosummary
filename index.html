@@ -221,48 +221,50 @@
     </div>
 
     <div class="overflow-x-auto pb-4">
-      <div id="infographic-card" class="bg-white w-[960px] min-w-[960px] mx-auto p-6 shadow-2xl rounded-2xl border border-slate-200 text-slate-900 space-y-5">
+      <div id="infographic-card" class="bg-white w-[960px] min-w-[960px] mx-auto p-6 shadow-2xl rounded-2xl border border-slate-200 text-slate-900 space-y-5 leading-normal">
 
         <div class="text-white p-4 rounded-xl flex items-center justify-between shadow-md" style="background:#0f4c81">
           <div class="flex items-center gap-4">
             <div class="bg-white p-3 rounded-xl shadow text-3xl" style="color:#0f4c81"><i data-ic="filetext"></i></div>
             <div>
-              <h1 class="text-2xl font-black tracking-wide">สรุป Memo ออกนอกพื้นที่โรงงาน</h1>
-              <p id="memo-header-period" class="text-base text-blue-100 font-medium">ประจำวันที่ 05/11/26</p>
+              <h1 class="text-2xl font-black tracking-wide leading-snug">สรุป Memo ออกนอกพื้นที่โรงงาน</h1>
+              <p id="memo-header-period" class="text-base text-blue-100 font-medium leading-normal mt-0.5">ประจำวันที่ 05/11/26</p>
             </div>
           </div>
-          <div class="bg-white/10 px-4 py-2 rounded-xl text-right border border-white/20">
-            <span class="text-xs text-blue-200 block uppercase">ระบบรายงานความปลอดภัย</span>
-            <span class="text-sm font-bold text-white">Daily Activity Security Summary</span>
+          <div class="bg-white/10 px-4 py-2.5 rounded-xl text-right border border-white/20">
+            <span class="text-xs text-blue-200 block uppercase leading-normal">ระบบรายงานความปลอดภัย</span>
+            <span class="text-sm font-bold text-white leading-normal">Daily Activity Security Summary</span>
           </div>
         </div>
 
         <div class="grid grid-cols-12 gap-5">
           <div class="col-span-7 flex flex-col justify-between">
-            <div class="border-2 rounded-xl overflow-hidden shadow-sm" style="border-color:#0f4c81">
+            <div class="border-2 rounded-xl shadow-sm bg-white" style="border-color:#0f4c81">
               <table class="w-full text-xs text-center border-collapse">
                 <thead>
                   <tr class="text-white" style="background:#0f4c81">
-                    <th rowspan="2" class="p-2 border border-blue-900 w-1/4 font-bold text-sm">หน่วยงาน</th>
-                    <th colspan="4" class="p-1.5 border border-blue-900 font-bold text-sm">วัตถุประสงค์ (คน)</th>
-                    <th rowspan="2" class="p-2 border border-blue-900 w-1/6 font-bold text-sm">รวม<br>(คน)</th>
+                    <th class="p-2 border-b border-r border-blue-900 w-1/4 font-bold text-sm leading-normal"></th>
+                    <th colspan="4" class="py-2 px-1.5 border-b border-blue-900 font-bold text-sm leading-normal">วัตถุประสงค์ (คน)</th>
+                    <th class="p-2 border-b border-l border-blue-900 w-1/6 font-bold text-sm leading-normal"></th>
                   </tr>
                   <tr class="text-white text-[11px]" style="background:#1b5e9c">
-                    <th class="p-1 border border-blue-800"><span class="block mb-0.5 text-xs"><i data-ic="utensils"></i></span>พักกลางวัน</th>
-                    <th class="p-1 border border-blue-800"><span class="block mb-0.5 text-xs"><i data-ic="smoke"></i></span>สูบบุหรี่</th>
-                    <th class="p-1 border border-blue-800"><span class="block mb-0.5 text-xs"><i data-ic="briefcase"></i></span>ทำงานนอกสถานที่</th>
-                    <th class="p-1 border border-blue-800"><span class="block mb-0.5 text-xs"><i data-ic="home"></i></span>ลาครึ่งวัน</th>
+                    <th class="py-2 px-2 border-r border-blue-800 font-bold text-sm align-middle leading-normal" style="background:#0f4c81">หน่วยงาน</th>
+                    <th class="py-2 px-1 border-r border-blue-800 align-middle leading-normal"><span class="block mb-1 text-xs"><i data-ic="utensils"></i></span>พักกลางวัน</th>
+                    <th class="py-2 px-1 border-r border-blue-800 align-middle leading-normal"><span class="block mb-1 text-xs"><i data-ic="smoke"></i></span>สูบบุหรี่</th>
+                    <th class="py-2 px-1 border-r border-blue-800 align-middle leading-normal"><span class="block mb-1 text-xs"><i data-ic="briefcase"></i></span>ทำงานนอกสถานที่</th>
+                    <th class="py-2 px-1 border-r border-blue-800 align-middle leading-normal"><span class="block mb-1 text-xs"><i data-ic="home"></i></span>ลาครึ่งวัน</th>
+                    <th class="py-2 px-2 font-bold text-sm align-middle leading-normal" style="background:#0f4c81">รวม (คน)</th>
                   </tr>
                 </thead>
                 <tbody id="memo-table-tbody" class="divide-y divide-slate-300 font-bold text-slate-800 text-sm"></tbody>
                 <tfoot>
                   <tr class="text-white font-extrabold text-base" style="background:#0f4c81">
-                    <td class="p-2.5 border border-blue-900">รวม</td>
-                    <td class="p-2.5 border border-blue-900" id="memo-total-lunch">0</td>
-                    <td class="p-2.5 border border-blue-900" id="memo-total-smoking">0</td>
-                    <td class="p-2.5 border border-blue-900" id="memo-total-offsite">0</td>
-                    <td class="p-2.5 border border-blue-900" id="memo-total-leave">0</td>
-                    <td class="p-2.5 border border-blue-900 text-yellow-300 text-lg" style="background:#0a355c" id="memo-grand-total">0</td>
+                    <td class="p-2.5 border-t border-r border-blue-900 leading-normal">รวม</td>
+                    <td class="p-2.5 border-t border-r border-blue-900 leading-normal" id="memo-total-lunch">0</td>
+                    <td class="p-2.5 border-t border-r border-blue-900 leading-normal" id="memo-total-smoking">0</td>
+                    <td class="p-2.5 border-t border-r border-blue-900 leading-normal" id="memo-total-offsite">0</td>
+                    <td class="p-2.5 border-t border-r border-blue-900 leading-normal" id="memo-total-leave">0</td>
+                    <td class="p-2.5 border-t border-blue-900 text-yellow-300 text-lg leading-normal" style="background:#0a355c" id="memo-grand-total">0</td>
                   </tr>
                 </tfoot>
               </table>
@@ -270,41 +272,41 @@
           </div>
 
           <div class="col-span-5 space-y-4 flex flex-col justify-between">
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between shadow-sm">
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
               <div class="flex items-center gap-3">
                 <div class="text-3xl" style="color:#0f4c81"><i data-ic="users"></i></div>
                 <div>
-                  <p class="text-xs font-bold text-slate-600">จำนวนพนักงานทั้งหมด</p>
-                  <div class="flex items-baseline gap-1">
-                    <span class="text-3xl font-black" style="color:#0f4c81" id="memo-widget-total">0</span>
-                    <span class="text-base font-bold text-slate-700">คน</span>
+                  <p class="text-xs font-bold text-slate-600 leading-normal">จำนวนพนักงานทั้งหมด</p>
+                  <div class="flex items-baseline gap-1 mt-0.5">
+                    <span class="text-3xl font-black leading-none" style="color:#0f4c81" id="memo-widget-total">0</span>
+                    <span class="text-base font-bold text-slate-700 leading-normal">คน</span>
                   </div>
                 </div>
               </div>
-              <div class="bg-blue-100 text-xs font-bold px-3 py-1 rounded-full border border-blue-300" style="color:#0f4c81" id="memo-widget-dept-count">รวม 0 หน่วยงาน</div>
+              <div class="bg-blue-100 text-xs font-bold px-3.5 py-1.5 rounded-full border border-blue-300 leading-normal" style="color:#0f4c81" id="memo-widget-dept-count">รวม 0 หน่วยงาน</div>
             </div>
 
-            <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center">
-              <h3 class="text-white text-xs font-bold px-4 py-1 rounded-full mb-2" style="background:#0f4c81">สัดส่วนตามวัตถุประสงค์</h3>
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col items-center">
+              <div class="text-white text-xs font-bold px-5 py-1.5 rounded-full mb-3 leading-normal inline-block" style="background:#0f4c81">สัดส่วนตามวัตถุประสงค์</div>
               <div class="flex items-center justify-between w-full">
                 <div class="w-40 h-40 relative flex-none">
                   <canvas id="memoDonutChart"></canvas>
                   <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span class="text-xl font-black" style="color:#0f4c81" id="memo-chart-center-total">0</span>
-                    <span class="text-[10px] font-bold text-slate-500">คน</span>
+                    <span class="text-xl font-black leading-tight" style="color:#0f4c81" id="memo-chart-center-total">0</span>
+                    <span class="text-[10px] font-bold text-slate-500 leading-normal">คน</span>
                   </div>
                 </div>
-                <div class="flex-1 ml-2 space-y-1 text-[11px] font-bold" id="memo-chart-legend"></div>
+                <div class="flex-1 ml-3 space-y-1.5 text-[11px] font-bold leading-normal" id="memo-chart-legend"></div>
               </div>
             </div>
           </div>
         </div>
 
         <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center gap-4 shadow-sm">
-          <div class="text-white p-3 rounded-full flex items-center justify-center text-2xl shadow" style="background:#0f4c81"><i data-ic="target"></i></div>
+          <div class="text-white p-3 rounded-full flex items-center justify-center text-2xl shadow flex-none" style="background:#0f4c81"><i data-ic="target"></i></div>
           <div class="flex-1">
-            <h3 class="text-base font-black mb-1" style="color:#0f4c81">สรุปประเด็นสำคัญ</h3>
-            <ul class="text-xs font-semibold text-slate-700 space-y-1 list-disc list-inside" id="memo-insights-list"></ul>
+            <h3 class="text-base font-black mb-1 leading-normal" style="color:#0f4c81">สรุปประเด็นสำคัญ</h3>
+            <ul class="text-xs font-semibold text-slate-700 space-y-1.5 list-disc list-inside leading-normal" id="memo-insights-list"></ul>
           </div>
         </div>
       </div>
@@ -949,10 +951,31 @@
     }
   }
 
+  async function renderCardCanvas() {
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+    const element = document.getElementById('infographic-card');
+    return html2canvas(element, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 1200,
+      onclone: function (clonedDoc) {
+        const card = clonedDoc.getElementById('infographic-card');
+        if (card) {
+          card.style.boxShadow = 'none';
+          card.style.margin = '0';
+        }
+      }
+    });
+  }
+
   function downloadMemoImage() {
     showToast('กำลังสร้างไฟล์รูปภาพ PNG...', 'info');
-    const element = document.getElementById('infographic-card');
-    html2canvas(element, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+    renderCardCanvas().then(canvas => {
       canvas.toBlob(blob => {
         if (!blob) { showToast('สร้างรูปภาพไม่สำเร็จ', 'error'); return; }
         saveFile('Memo_Summary_Infographic_' + localISO() + '.png', blob);
@@ -964,7 +987,12 @@
     if (!window.html2pdf) { showToast('โหลดไลบรารี PDF ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วรีเฟรช', 'error'); return; }
     showToast('กำลังเตรียมไฟล์ PDF...', 'info');
     const element = document.getElementById('infographic-card');
-    const opt = { margin: 0.2, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' } };
+    const opt = {
+      margin: 0.2,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: 1200 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
+    };
     html2pdf().set(opt).from(element).outputPdf('blob').then(blob => saveFile('Memo_Summary_Infographic.pdf', blob)).catch(() => showToast('สร้าง PDF ไม่สำเร็จ', 'error'));
   }
 
