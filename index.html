@@ -472,15 +472,21 @@
     </div>
 
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
-        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><span class="text-emerald-600"><i data-ic="db"></i></span> รายการบันทึกข้อมูลทั้งหมดในระบบ</h3>
+      <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
+        <div class="flex items-center gap-3">
+          <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><span class="text-emerald-600"><i data-ic="db"></i></span> รายการบันทึกข้อมูลทั้งหมดในระบบ</h3>
+          <button type="button" id="bulk-delete-btn" onclick="deleteSelectedEntries()" disabled class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed">
+            <i data-ic="trash"></i> ลบรายการที่เลือก (<span id="selected-count">0</span>)
+          </button>
+        </div>
         <span class="text-xs text-slate-500 font-mono" id="entry-table-count">รวมทั้งหมด 0 รายการ</span>
       </div>
       <div class="overflow-x-auto custom-scrollbar max-h-[500px]">
         <table class="w-full text-xs text-left excel-table">
           <thead class="bg-slate-100 text-slate-700 font-bold uppercase sticky top-0 shadow-sm">
             <tr>
-              <th class="p-3 text-center">#</th>
+              <th class="p-3 text-center w-10"><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"></th>
+              <th class="p-3 text-center w-12">#</th>
               <th class="p-3">วันที่</th>
               <th class="p-3">แผนก</th>
               <th class="p-3 text-right">พักกลางวัน</th>
@@ -488,7 +494,7 @@
               <th class="p-3 text-right">นอกสถานที่</th>
               <th class="p-3 text-right">ลางานครึ่งวัน</th>
               <th class="p-3 text-right bg-emerald-50 text-emerald-800">ยอดรวม</th>
-              <th class="p-3 text-center">จัดการ</th>
+              <th class="p-3 text-center w-16">จัดการ</th>
             </tr>
           </thead>
           <tbody id="entry-table-tbody" class="divide-y divide-slate-200 font-mono"></tbody>
@@ -820,6 +826,7 @@
     rows.forEach((d, idx) => {
       const tr = document.createElement('tr');
       tr.innerHTML =
+        '<td class="p-3 text-center"><input type="checkbox" value="' + esc(d.id) + '" onchange="updateSelectedCount()" class="row-checkbox rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"></td>' +
         '<td class="p-3 text-center text-slate-400 font-mono">' + (idx + 1) + '</td>' +
         '<td class="p-3 font-medium text-slate-800">' + esc(d.date) + '</td>' +
         '<td class="p-3"><span class="bg-slate-100 font-bold px-2 py-0.5 rounded text-slate-700">' + esc(d.dept) + '</span></td>' +
@@ -829,10 +836,63 @@
         '<td class="p-3 text-right text-rose-700">' + d.leave + '</td>' +
         '<td class="p-3 text-right font-bold text-emerald-700 bg-emerald-50/50">' + rowTotal(d) + '</td>' +
         '<td class="p-3 text-center">' +
-          '<button type="button" onclick="deleteEntry(&quot;' + d.id + '&quot;)" class="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer">' + ic('trash') + '</button>' +
+          '<button type="button" onclick="deleteEntry(&quot;' + d.id + '&quot;)" class="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer" title="ลบรายการนี้">' + ic('trash') + '</button>' +
         '</td>';
       tbody.appendChild(tr);
     });
+
+    // Reset select all checkbox
+    const selectAllCb = document.getElementById('select-all-checkbox');
+    if (selectAllCb) selectAllCb.checked = false;
+    updateSelectedCount();
+  }
+
+  function toggleSelectAll(source) {
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(cb => cb.checked = source.checked);
+    updateSelectedCount();
+  }
+
+  function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    const btn = document.getElementById('bulk-delete-btn');
+    const countSpan = document.getElementById('selected-count');
+    if (countSpan) countSpan.innerText = count;
+    if (btn) {
+      btn.disabled = count === 0;
+    }
+  }
+
+  async function deleteSelectedEntries() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    if (checkboxes.length === 0) return;
+
+    if (!confirm('คุณต้องการลบข้อมูลที่เลือกจำนวน ' + checkboxes.length + ' รายการ ใช่หรือไม่?')) {
+      return;
+    }
+
+    const idsToDelete = Array.from(checkboxes).map(cb => cb.value);
+    
+    // Remove from local dataset immediately
+    dataset = dataset.filter(d => !idsToDelete.includes(d.id));
+    populateDeptDropdowns();
+    renderAllSheets();
+    showToast('ลบรายการที่เลือกเรียบร้อยแล้ว (' + idsToDelete.length + ' รายการ)', 'error');
+
+    // Remove from Firestore if active
+    if (db) {
+      try {
+        const batch = db.batch();
+        idsToDelete.forEach(id => {
+          const docRef = db.collection('activities').doc(id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      } catch (err) {
+        console.warn("Could not batch delete from Firestore:", err);
+      }
+    }
   }
 
   async function handleFormSubmit(e) {
@@ -865,6 +925,8 @@
   }
 
   async function deleteEntry(id) {
+    if (!confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) return;
+    
     dataset = dataset.filter(d => d.id !== id);
     populateDeptDropdowns();
     renderAllSheets();
@@ -1105,7 +1167,7 @@
       renderAllSheets();
       showToast('นำเข้าข้อมูลสำเร็จ ' + totalImported + ' รายการ');
     } else {
-      showToast('ไม่พบข้อมูลที่สามารถนำเข้าได้ในไฟล์', 'error');
+      someToast('ไม่พบข้อมูลที่สามารถนำเข้าได้ในไฟล์', 'error');
     }
   }
 
